@@ -18,6 +18,10 @@ threaded_examples = [ 'notify_inval_inode',
                       'notify_inval_entry',
                       'poll' ]
 
+fuse_bpf_examples = [ 'fuse_daemon' ]
+
+bpf_examples = [ 'fd_bpf' ]
+
 foreach ex : examples
     executable(ex, ex + '.c',
                dependencies: [ libfuse_dep ],
@@ -29,6 +33,37 @@ foreach ex : threaded_examples
     executable(ex, ex + '.c',
                dependencies: [ thread_dep, libfuse_dep ],
                install: false)
+endforeach
+
+libelf_dep = dependency('libelf')
+foreach ex : fuse_bpf_examples
+    executable(ex, [ 'fuse_bpf/' + ex + '.c', 'fuse_bpf/bpf_loader.c' ],
+               dependencies: [ libfuse_dep, libelf_dep ],
+               install: false)
+endforeach
+
+clang = find_program('clang')
+
+infile = 'fuse_bpf/fd_bpf.c'
+outfile = 'fd_bpf.ir'
+
+infile2 = custom_target('targetname',
+  output : outfile,
+  input : infile,
+  command : [clang, '-emit-llvm', '-O2', '-c', '-g', '@INPUT@', '-o', '@OUTPUT@'])
+
+llc = find_program('llc')
+
+outfile2 = 'fd_bpf.bpf'
+
+mytarget2 = custom_target('targetname2',
+  output : outfile2,
+  input : infile2,
+  command : [llc, '-march=bpf', '-filetype=obj', '-o', '@OUTPUT@', '@INPUT@'],
+  install : true,
+  install_dir : 'subdir')
+
+foreach ex : bpf_examples
 endforeach
 
 if not platform.endswith('bsd') and platform != 'dragonfly' and add_languages('cpp', required : false)
